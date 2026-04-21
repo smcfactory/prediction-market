@@ -1,0 +1,9 @@
+# Default: founders (humans) approve critical paths only
+# Regular code relies on ruleset's "1 approving review" — not CODEOWNERS
+
+# CRITICAL — only humans approve
+/.github/workflows/**  @smcfactory/founders
+/.github/CODEOWNERS    @smcfactory/founders
+
+# Everything else — rulesets handle approval requirements
+# (no owner line = any write-access approver satisfies)
