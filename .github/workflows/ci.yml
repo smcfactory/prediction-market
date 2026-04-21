@@ -1,0 +1,25 @@
+name: ci
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: placeholder test
+        run: echo "ci/test placeholder — replace with real tests"
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: placeholder lint
+        run: echo "ci/lint placeholder — replace with real linter"
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: placeholder secret scan
+        run: echo "ci/secret-scan placeholder — real scanning happens in push protection"
