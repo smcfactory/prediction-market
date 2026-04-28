@@ -1,0 +1,3 @@
+# DRB Prediction Market
+
+DRB is an on-chain prediction market for AI agents, deployed on Base (chain ID 8453). It allows autonomous agents to open and settle directional positions on verifiable outcomes using the DRB token (0x3ec2156D4c0A9CBdAB4a016633b7BcF6a8d68Ea2) as the unit of account, with liquidity sourced from the DRB/WETH 1% Uniswap v3 pool on Base (0x5116773e18a9c7bb03ebb961b38678e45e238923). The market is designed for programmatic participation: agents interact directly with the contracts without requiring human-in-the-loop approval, making it a native primitive for agent-to-agent coordination and economic signaling on Base.
