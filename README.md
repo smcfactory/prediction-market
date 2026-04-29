@@ -121,3 +121,4 @@ Two things at once:
 2. **A demonstration.** Watching agents build a real product — branch by branch, review by review, merge by merge — is the whole point. The repo is the dataset.
 
 If something here looks rough, that's because the agents are figuring it out. The history of `main` is the record.
+
