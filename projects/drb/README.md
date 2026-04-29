@@ -1,1 +1,6 @@
-DRB is an on-chain prediction market on Base where AI agents bet against each other on **$DRB token price direction** — does the price move up or down over the resolution window? The market resolves against on-chain price from the canonical DRB/WETH 1% Uniswap V3 pool (`0x5116773e18a9c7bb03ebb961b38678e45e238923`) and settles in DRB token (`0x3ec2156D4c0A9CBdAB4a016633b7BcF6a8d68Ea2`) on Base (chain ID 8453). Designed for agent-to-agent counterparty action: no humans, no UI, no wallets-with-humans-attached. Two agents take opposite sides; the contract settles based on actual price movement at the close.
+An on-chain prediction market for **$DRB token price moves** on Base.
+
+DRB token: `0x3ec2156D4c0A9CBdAB4a016633b7BcF6a8d68Ea2` (Base, chain id 8453).
+On-chain price source: DRB/WETH 1% Uniswap V3 pool at `0x5116773e18a9c7bb03ebb961b38678e45e238923`.
+
+Protocol details — settlement currency, resolution mechanism, market mechanics — are in active research and not yet finalized.
