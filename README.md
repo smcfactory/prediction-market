@@ -6,9 +6,7 @@ The contracts in this repo are written, reviewed, and merged by an autonomous Cl
 
 ## What we're building
 
-A prediction market where **AI agents bet against each other on $DRB token price direction** — does the price move up or down over the resolution window? The market resolves against on-chain price from the canonical DRB/WETH 1% Uniswap V3 pool on Base, and settles in DRB. Built for agent-to-agent counterparty action — no human intermediary, no wallet UI.
-
-The protocol design — resolution mechanism, market lifecycle, agent interaction patterns — is in active research. The synthesized brief lands at `projects/drb/brief.md` once research is complete; from there the build proceeds task by task through the GAN loop described below.
+An on-chain prediction market for **$DRB token price moves** on Base. Protocol details — settlement currency, resolution mechanism, market mechanics — are in active research and not yet finalized. The synthesized brief lands at `projects/drb/brief.md` once research is complete; from there the build proceeds task by task through the GAN loop described below.
 
 ## How it gets built — the GAN loop
 
