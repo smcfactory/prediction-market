@@ -4,22 +4,175 @@ on:
     branches: [main]
   push:
     branches: [main]
+
+# One CI run per ref; cancel in-progress when the ref is updated.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Required for slither-action to write the SARIF report and for reading the diff.
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: read
+
 jobs:
-  test:
+  # --------------------------------------------------------------------------
+  # Fast lane: every PR push runs these. HARD_BLOCK on any failure.
+  # --------------------------------------------------------------------------
+  build-test:
+    name: build + fmt + test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/drb
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: forge --version
+        run: forge --version
+
+      - name: forge fmt --check
+        run: forge fmt --check
+
+      - name: forge build --sizes
+        run: forge build --sizes
+
+      - name: forge test (unit)
+        run: forge test -vvv --no-match-test "invariant_"
+
+      - name: forge test (invariant)
+        run: forge test --match-test "invariant_" --fuzz-seed 0xdeadbeef
+
+      - name: forge coverage
+        run: |
+          # Skip coverage when no contracts yet — keeps Sprint N+1 bootstrap green.
+          if compgen -G "contracts/*.sol" >/dev/null; then
+            forge coverage --report summary --report lcov
+          else
+            echo "coverage: no contracts yet, skipping"
+          fi
+
+  # --------------------------------------------------------------------------
+  # Static analysis. HARD_BLOCK on severity >= medium.
+  # --------------------------------------------------------------------------
+  static:
+    name: slither
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: placeholder test
-        run: echo "ci/test placeholder — replace with real tests"
-  lint:
+        with:
+          submodules: recursive
+
+      - name: slither
+        uses: crytic/slither-action@v0.4.0
+        with:
+          target: projects/drb
+          slither-args: --filter-paths "lib|test"
+          fail-on: medium
+        continue-on-error: false
+
+  # --------------------------------------------------------------------------
+  # Fork tests against Base mainnet. Gated by `ci:full` PR label OR push to main.
+  # Requires BASE_RPC_URL repo secret. Pinned fork-block-number for determinism.
+  # --------------------------------------------------------------------------
+  fork:
+    name: fork tests (base)
+    if: |
+      github.event_name == 'push' ||
+      contains(github.event.pull_request.labels.*.name, 'ci:full')
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/drb
     steps:
       - uses: actions/checkout@v4
-      - name: placeholder lint
-        run: echo "ci/lint placeholder — replace with real linter"
-  secret-scan:
+        with:
+          submodules: recursive
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: forge test (fork)
+        env:
+          BASE_RPC_URL: ${{ secrets.BASE_RPC_URL }}
+        run: |
+          if [ -z "$BASE_RPC_URL" ]; then
+            echo "BASE_RPC_URL not set, skipping fork tests"
+            exit 0
+          fi
+          if compgen -G "test/fork/*.sol" >/dev/null; then
+            forge test --fork-url "$BASE_RPC_URL" --fork-block-number 22500000 --match-path "test/fork/**"
+          else
+            echo "no fork tests yet, skipping"
+          fi
+
+  # --------------------------------------------------------------------------
+  # Reproducibility check: build twice, diff bytecode + ABI.
+  # Tolerates metadata variance per locked decision (cbor_metadata = false in foundry.toml).
+  # --------------------------------------------------------------------------
+  reproducibility:
+    name: reproducibility
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: projects/drb
     steps:
       - uses: actions/checkout@v4
-      - name: placeholder secret scan
-        run: echo "ci/secret-scan placeholder — real scanning happens in push protection"
+        with:
+          submodules: recursive
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: build #1
+        run: |
+          forge build --sizes
+          mkdir -p /tmp/build1
+          if [ -d out ]; then cp -r out /tmp/build1/; fi
+
+      - name: build #2
+        run: |
+          forge clean
+          forge build --sizes
+          mkdir -p /tmp/build2
+          if [ -d out ]; then cp -r out /tmp/build2/; fi
+
+      - name: diff bytecode + ABI
+        run: |
+          if [ ! -d /tmp/build1/out ] || [ ! -d /tmp/build2/out ]; then
+            echo "no contracts compiled (empty repo) — reproducibility vacuously holds"
+            exit 0
+          fi
+          # Extract bytecode and ABI from each contract's artifact JSON, compare hashes.
+          fail=0
+          for f in $(find /tmp/build1/out -name '*.json' -not -path '*/build-info/*'); do
+            rel="${f#/tmp/build1/out/}"
+            other="/tmp/build2/out/$rel"
+            if [ ! -f "$other" ]; then
+              echo "MISSING in build #2: $rel"
+              fail=1; continue
+            fi
+            # bytecode + ABI only — ignore .metadata, .ast, etc.
+            h1=$(jq -S '{bytecode: .bytecode.object, abi}' "$f" 2>/dev/null | sha256sum | cut -d' ' -f1)
+            h2=$(jq -S '{bytecode: .bytecode.object, abi}' "$other" 2>/dev/null | sha256sum | cut -d' ' -f1)
+            if [ "$h1" != "$h2" ]; then
+              echo "DIVERGED: $rel"
+              echo "  build1 hash: $h1"
+              echo "  build2 hash: $h2"
+              fail=1
+            fi
+          done
+          if [ $fail -ne 0 ]; then
+            echo "reproducibility check FAILED — bytecode or ABI differs across same-commit builds"
+            exit 1
+          fi
+          echo "reproducibility check PASSED"

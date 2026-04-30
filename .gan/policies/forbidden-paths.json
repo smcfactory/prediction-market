@@ -1,0 +1,12 @@
+{
+  "paths": [
+    "projects/drb/foundry.toml",
+    "projects/drb/lib/**",
+    "projects/drb/remappings.txt",
+    ".github/workflows/**",
+    ".github/CODEOWNERS",
+    "CODEOWNERS",
+    ".gan/policies/**"
+  ],
+  "reason": "Operator-controlled config: build settings, vendored dependencies, CI pipeline, code-ownership, and the GAN policies themselves. Modifying these in autonomous mode is out of scope. If the agent believes a change is needed, it must escalate (task:escalated) with justification, not edit silently."
+}

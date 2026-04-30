@@ -1,0 +1,20 @@
+{
+  "small": {
+    "maxFiles": 3,
+    "maxNetLines": 200,
+    "maxConcerns": 1,
+    "maxPublicAPIChanges": 1
+  },
+  "medium": {
+    "maxFiles": 6,
+    "maxNetLines": 500,
+    "maxConcerns": 1,
+    "maxPublicAPIChanges": 1
+  },
+  "autonomousDisallow": [
+    "vendored_libs_plus_feature_work",
+    "new_contract_plus_infra_plus_fork_fixture",
+    "forbidden_file_exceptions_without_operator",
+    "multiple_concerns_in_one_pr"
+  ]
+}
