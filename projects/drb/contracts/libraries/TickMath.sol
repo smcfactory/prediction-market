@@ -6,11 +6,8 @@
  *
  * Patches for Solidity 0.8.x compatibility:
  * - `uint256(MAX_TICK)` → `uint256(uint24(MAX_TICK))`
- *   Solidity 0.8.x does not support direct narrowing/widening casts from signed integer
- *   types to uint256 without an explicit intermediate unsigned cast. Using uint24 as the
- *   intermediate type is safe because MAX_TICK = 887272 fits in uint24 (max 16777215 — wait,
- *   887272 > 16777215). Actually uint24 max is 16777215 and 887272 < 16777215. ✓
- *   (887272 < 2^24 = 16777216 ✓)
+ *   Solidity 0.8.x requires an explicit intermediate unsigned cast for signed→uint256.
+ *   MAX_TICK = 887272 fits in uint24 (2^24 = 16777216).
  */
 pragma solidity >=0.5.0;
 

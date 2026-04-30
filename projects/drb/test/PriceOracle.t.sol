@@ -16,12 +16,13 @@ contract MockV3Pool {
     }
 
     /// @dev Returns cardinality=1 so getOldestObservationSecondsAgo reads observations(0).
+    ///      sqrtPriceX96=1 signals an initialized pool; tick reflects mockTick for getPriceSpot.
     function slot0()
         external
         view
         returns (uint160, int24, uint16, uint16, uint16, uint8, bool)
     {
-        return (uint160(1), int24(0), uint16(0), uint16(1), uint16(1), uint8(0), true);
+        return (uint160(1), mockTick, uint16(0), uint16(1), uint16(1), uint8(0), true);
     }
 
     /// @dev observations(0) holds the oldest (and only) entry, timestamped `oldestAge` seconds ago.
@@ -66,7 +67,7 @@ contract PriceOracleTest is Test {
 
     uint32  constant ROUND_TWAP  = 300;
     uint32  constant ANCHOR_TWAP = 1800;
-    uint256 constant MAX_PRICE   = 1e30;
+    uint256 constant MAX_PRICE   = type(uint256).max / 1e18;
 
     PriceOracle oracle;
 
@@ -136,16 +137,15 @@ contract PriceOracleTest is Test {
         oracle.getPriceTWAP(address(mockPool), address(1), address(2), 1, 1000);
     }
 
-    function test_getPriceTWAP_reverts_priceOutOfRange_zero() public {
-        // Mock pool at tick = MIN_TICK (-887272) with 400 s of history.
-        // getQuoteAtTick(MIN_TICK, 1, address(1), address(2)) floors to 0 because:
-        //   ratioX192 = MIN_SQRT_RATIO^2 ≈ 1.84e19, mulDiv(1.84e19, 1, 2^192) = 0
-        //   (address(1) < address(2) selects the tiny-ratio branch)
-        // priceX18=0 < MIN_PRICE=1 → PriceOutOfRange(0)
-        MockV3Pool zeroPool = new MockV3Pool(int24(-887272), uint32(400));
+    function test_getPriceSpot_reverts_priceOutOfRange_zero() public {
+        // Pool fixture at MIN_TICK (-887272): slot0 returns sqrtPriceX96=1 (initialized, non-zero)
+        // with tick=MIN_TICK. getPriceSpot reads tick directly from slot0 and calls
+        // getQuoteAtTick(MIN_TICK, 1, addr(1), addr(2)). With addr(1) < addr(2):
+        //   mulDiv(MIN_SQRT_RATIO^2 ≈ 1.84e19, 1, 2^192) = 0 → PriceOutOfRange(0).
+        MockV3Pool zeroPool = new MockV3Pool(int24(-887272), uint32(0));
         vm.expectRevert(
             abi.encodeWithSelector(PriceOracle.PriceOutOfRange.selector, uint256(0))
         );
-        oracle.getPriceTWAP(address(zeroPool), address(1), address(2), uint128(1), uint32(300));
+        oracle.getPriceSpot(address(zeroPool), address(1), address(2), uint128(1));
     }
 }

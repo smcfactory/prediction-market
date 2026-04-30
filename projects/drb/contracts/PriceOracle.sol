@@ -37,7 +37,7 @@ contract PriceOracle {
     /// @notice Minimum accepted price (1 wei — rejects exact zero from degenerate pools).
     uint256 public constant MIN_PRICE = 1;
 
-    /// @notice Maximum accepted price (Uniswap tick math tops out near 4.3e27 for 1e18 base; 1e30 is a tight, safe ceiling).
+    /// @notice Maximum accepted price (type(uint256).max / 1e18 — above any tick-math-reachable quote for 1e18 base amounts).
     uint256 public constant MAX_PRICE = type(uint256).max / 1e18;
 
     // ─── Functions ─────────────────────────────────────────────────────────────
