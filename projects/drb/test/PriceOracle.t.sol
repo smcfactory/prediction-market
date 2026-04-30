@@ -54,6 +54,46 @@ contract MockV3Pool {
     function increaseObservationCardinalityNext(uint16) external {}
 }
 
+/// @dev Two-tick mock for deterministic anchor-deviation tests.
+///      observe() returns a different effective tick depending on whether the requested window
+///      is <= 300 s (ROUND_TWAP) or larger (ANCHOR_TWAP), making p5 != p30 unconditionally.
+contract MockV3PoolDualTick {
+    int24 public immutable tickShort;
+    int24 public immutable tickLong;
+    uint32 public immutable oldestAge;
+
+    constructor(int24 _tickShort, int24 _tickLong, uint32 _oldestAge) {
+        tickShort = _tickShort;
+        tickLong  = _tickLong;
+        oldestAge = _oldestAge;
+    }
+
+    function slot0() external view returns (uint160, int24, uint16, uint16, uint16, uint8, bool) {
+        return (uint160(1), tickShort, uint16(0), uint16(1), uint16(1), uint8(0), true);
+    }
+
+    function observations(uint256) external view returns (uint32, int56, uint160, bool) {
+        return (uint32(block.timestamp) - oldestAge, int56(0), uint160(0), true);
+    }
+
+    function observe(uint32[] calldata secondsAgos)
+        external
+        view
+        returns (int56[] memory tickCumulatives, uint160[] memory secPerLiq)
+    {
+        tickCumulatives = new int56[](2);
+        secPerLiq       = new uint160[](2);
+        uint32 duration = secondsAgos[0];
+        int24  tick     = duration <= 300 ? tickShort : tickLong;
+        tickCumulatives[0] = -int56(tick) * int56(uint56(duration));
+        tickCumulatives[1] = 0;
+        secPerLiq[0] = 0;
+        secPerLiq[1] = 1e30;
+    }
+
+    function increaseObservationCardinalityNext(uint16) external {}
+}
+
 contract PriceOracleTest is Test {
     /// @dev Pinned Base mainnet block for deterministic fork tests (~Aug 2025).
     ///      Pool deployed ~block 27.5M; cardinality raised to 10000 before block 30M,
@@ -66,16 +106,12 @@ contract PriceOracleTest is Test {
 
     uint32  constant ROUND_TWAP  = 300;
     uint32  constant ANCHOR_TWAP = 1800;
-    uint256 constant MAX_PRICE   = type(uint256).max / 1e18;
+    uint256 constant MAX_PRICE   = 1e30;
 
     PriceOracle oracle;
 
     function setUp() public {
-        // vm.rpcUrl("base") requires Foundry to resolve ${BASE_RPC_URL:-https://mainnet.base.org}
-        // from foundry.toml. Foundry ≤1.5.x doesn't support :-default syntax, so we fall back to
-        // vm.envOr here. CI sets BASE_RPC_URL; local dev falls through to the public endpoint.
-        string memory rpcUrl = vm.envOr("BASE_RPC_URL", string("https://mainnet.base.org"));
-        vm.createSelectFork(rpcUrl, FORK_BLOCK);
+        vm.createSelectFork(vm.rpcUrl("base"), FORK_BLOCK);
         oracle = new PriceOracle();
     }
 
@@ -113,15 +149,13 @@ contract PriceOracleTest is Test {
     }
 
     function test_getRoundPrice_okFalse_whenAnchorDeviates() public {
-        // Fetch both windows via external calls to learn the actual deviation.
-        uint256 p5  = oracle.getPriceTWAP(POOL, DRB, WETH, 1 ether, ROUND_TWAP);
-        uint256 p30 = oracle.getPriceTWAP(POOL, DRB, WETH, 1 ether, ANCHOR_TWAP);
-        // If both windows return the same price at this pinned block (edge case), skip.
-        if (p5 == p30) return;
-
-        // maxDevBps=0: ok=false iff deviation > 0. Since p5 != p30, ok must be false.
-        (, bool ok) = oracle.getRoundPrice(POOL, DRB, WETH, 1 ether, 0);
-        assertFalse(ok, "getRoundPrice: deviation guard must trip with maxDevBps=0");
+        // Use a mock that unconditionally returns different ticks for the 5-min and 30-min windows,
+        // so p5 != p30 is guaranteed without relying on fork-block price volatility.
+        // tick=100 (short) and tick=200 (long) both produce prices well within [MIN_PRICE, MAX_PRICE].
+        // With maxDevBps=0 any nonzero deviation must flip ok to false.
+        MockV3PoolDualTick dualPool = new MockV3PoolDualTick(int24(100), int24(200), uint32(2000));
+        (, bool ok) = oracle.getRoundPrice(address(dualPool), address(1), address(2), 1 ether, 0);
+        assertFalse(ok, "getRoundPrice: deviation guard must trip with maxDevBps=0 when ticks differ");
     }
 
     function test_getHarmonicMeanLiquidity_drb_weth() public {

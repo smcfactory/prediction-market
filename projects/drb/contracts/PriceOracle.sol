@@ -37,8 +37,8 @@ contract PriceOracle {
     /// @notice Minimum accepted price (1 wei — rejects exact zero from degenerate pools).
     uint256 public constant MIN_PRICE = 1;
 
-    /// @notice Maximum accepted price (guards against overflow-prone arithmetic downstream).
-    uint256 public constant MAX_PRICE = type(uint256).max / 1e18;
+    /// @notice Maximum accepted price (Uniswap tick math tops out near 4.3e27 for 1e18 base; 1e30 is a tight, safe ceiling).
+    uint256 public constant MAX_PRICE = 1e30;
 
     // ─── Functions ─────────────────────────────────────────────────────────────
 
@@ -120,6 +120,7 @@ contract PriceOracle {
 
         (int24 tick, ) = OracleLibrary.consult(pool, ROUND_TWAP);
         p = OracleLibrary.getQuoteAtTick(tick, baseAmount, baseToken, quoteToken);
+        if (p < MIN_PRICE || p > MAX_PRICE) revert PriceOutOfRange(p);
 
         if (oldest < ANCHOR_TWAP) {
             ok = false;
@@ -128,6 +129,7 @@ contract PriceOracle {
 
         (int24 anchorTick, ) = OracleLibrary.consult(pool, ANCHOR_TWAP);
         uint256 anchor = OracleLibrary.getQuoteAtTick(anchorTick, baseAmount, baseToken, quoteToken);
+        if (anchor < MIN_PRICE || anchor > MAX_PRICE) revert PriceOutOfRange(anchor);
 
         uint256 deviation = p > anchor ? p - anchor : anchor - p;
         ok = (deviation * 10_000 <= anchor * maxDevBps);
