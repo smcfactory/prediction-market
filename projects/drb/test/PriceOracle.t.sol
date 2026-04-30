@@ -54,46 +54,6 @@ contract MockV3Pool {
     function increaseObservationCardinalityNext(uint16) external {}
 }
 
-/// @dev Two-tick mock for deterministic anchor-deviation tests.
-///      observe() returns a different effective tick depending on whether the requested window
-///      is <= 300 s (ROUND_TWAP) or larger (ANCHOR_TWAP), making p5 != p30 unconditionally.
-contract MockV3PoolDualTick {
-    int24 public immutable tickShort;
-    int24 public immutable tickLong;
-    uint32 public immutable oldestAge;
-
-    constructor(int24 _tickShort, int24 _tickLong, uint32 _oldestAge) {
-        tickShort = _tickShort;
-        tickLong  = _tickLong;
-        oldestAge = _oldestAge;
-    }
-
-    function slot0() external view returns (uint160, int24, uint16, uint16, uint16, uint8, bool) {
-        return (uint160(1), tickShort, uint16(0), uint16(1), uint16(1), uint8(0), true);
-    }
-
-    function observations(uint256) external view returns (uint32, int56, uint160, bool) {
-        return (uint32(block.timestamp) - oldestAge, int56(0), uint160(0), true);
-    }
-
-    function observe(uint32[] calldata secondsAgos)
-        external
-        view
-        returns (int56[] memory tickCumulatives, uint160[] memory secPerLiq)
-    {
-        tickCumulatives = new int56[](2);
-        secPerLiq       = new uint160[](2);
-        uint32 duration = secondsAgos[0];
-        int24  tick     = duration <= 300 ? tickShort : tickLong;
-        tickCumulatives[0] = -int56(tick) * int56(uint56(duration));
-        tickCumulatives[1] = 0;
-        secPerLiq[0] = 0;
-        secPerLiq[1] = 1e30;
-    }
-
-    function increaseObservationCardinalityNext(uint16) external {}
-}
-
 contract PriceOracleTest is Test {
     /// @dev Pinned Base mainnet block for deterministic fork tests (~Aug 2025).
     ///      Pool deployed ~block 27.5M; cardinality raised to 10000 before block 30M,
@@ -149,13 +109,11 @@ contract PriceOracleTest is Test {
     }
 
     function test_getRoundPrice_okFalse_whenAnchorDeviates() public {
-        // Use a mock that unconditionally returns different ticks for the 5-min and 30-min windows,
-        // so p5 != p30 is guaranteed without relying on fork-block price volatility.
-        // tick=100 (short) and tick=200 (long) both produce prices well within [MIN_PRICE, MAX_PRICE].
-        // With maxDevBps=0 any nonzero deviation must flip ok to false.
-        MockV3PoolDualTick dualPool = new MockV3PoolDualTick(int24(100), int24(200), uint32(2000));
-        (, bool ok) = oracle.getRoundPrice(address(dualPool), address(1), address(2), 1 ether, 0);
-        assertFalse(ok, "getRoundPrice: deviation guard must trip with maxDevBps=0 when ticks differ");
+        // maxDevBps=0 means any nonzero deviation between the 5-min and 30-min TWAP trips ok=false.
+        // The real DRB/WETH pool at block 30_000_000 has a non-flat price history, so the two
+        // TWAPs differ and the deviation guard fires.
+        (, bool ok) = oracle.getRoundPrice(POOL, DRB, WETH, 1 ether, 0);
+        assertFalse(ok, "getRoundPrice: deviation guard must trip with maxDevBps=0 on real DRB/WETH pool");
     }
 
     function test_getHarmonicMeanLiquidity_drb_weth() public {

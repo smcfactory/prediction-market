@@ -38,7 +38,7 @@ contract PriceOracle {
     uint256 public constant MIN_PRICE = 1;
 
     /// @notice Maximum accepted price (Uniswap tick math tops out near 4.3e27 for 1e18 base; 1e30 is a tight, safe ceiling).
-    uint256 public constant MAX_PRICE = type(uint256).max / 1e18;
+    uint256 public constant MAX_PRICE = 1e30;
 
     // ─── Functions ─────────────────────────────────────────────────────────────
 
