@@ -61,6 +61,7 @@ jobs:
 
   # --------------------------------------------------------------------------
   # Static analysis. HARD_BLOCK on severity >= medium.
+  # Skipped when contracts/ has no Solidity files (Sprint N+1 bootstrap-friendly).
   # --------------------------------------------------------------------------
   static:
     name: slither
@@ -70,13 +71,23 @@ jobs:
         with:
           submodules: recursive
 
+      - name: detect solidity files
+        id: detect
+        run: |
+          if compgen -G "projects/drb/contracts/*.sol" >/dev/null; then
+            echo "has_contracts=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_contracts=false" >> $GITHUB_OUTPUT
+            echo "No Solidity contracts yet — slither will skip"
+          fi
+
       - name: slither
+        if: steps.detect.outputs.has_contracts == 'true'
         uses: crytic/slither-action@v0.4.0
         with:
           target: projects/drb
           slither-args: --filter-paths "lib|test"
           fail-on: medium
-        continue-on-error: false
 
   # --------------------------------------------------------------------------
   # Fork tests against Base mainnet. Gated by `ci:full` PR label OR push to main.
