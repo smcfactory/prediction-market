@@ -3,3 +3,8 @@ cache/
 broadcast/
 .env
 lib/
+# Operator-vendored 0.8.x-patched V3 oracle libs (per Issue #18 prerequisite).
+# Distinct from the upstream pristine submodules (lib/v3-core, lib/v3-periphery)
+# which are tracked as gitlinks. The regular files in lib/v3-oracle/ need
+# explicit un-ignore to be tracked.
+!lib/v3-oracle/
