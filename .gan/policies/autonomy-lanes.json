@@ -8,8 +8,8 @@
   "medium": {
     "maxFiles": 6,
     "maxNetLines": 500,
-    "maxConcerns": 1,
-    "maxPublicAPIChanges": 1
+    "maxConcerns": 2,
+    "maxPublicAPIChanges": 5
   },
   "autonomousDisallow": [
     "vendored_libs_plus_feature_work",
